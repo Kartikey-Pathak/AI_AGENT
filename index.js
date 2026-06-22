@@ -3,8 +3,15 @@ import { OpenRouter } from '@openrouter/sdk';
 import fs from "fs";
 import { exec } from "child_process";
 import { jsonrepair } from "jsonrepair";
+import readline from "readline";
 
 configDotenv();
+
+
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+});
 
 function runFile(path) {
 
@@ -46,9 +53,9 @@ function runFile(path) {
     });
 }
 
-function openVSCode(folder) {
-    exec(`code ${folder}`);
-    console.log("VS Code Opened");
+function openVSCode(path) {
+    exec(`code ${path}`);
+    console.log(`${path} opened in VS Code`);
 }
 
 function createFile(path) {
@@ -65,14 +72,17 @@ const client = new OpenRouter({
     apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-const response = await client.chat.send({
-    chatRequest: {
-        model: "meta-llama/llama-3-8b-instruct",
-        response_format: { type: "json_object" },
-        messages: [
-            {
-                role: "system",
-                content: `
+
+async function askAI(prompt) {
+
+    const response = await client.chat.send({
+        chatRequest: {
+            model: "meta-llama/llama-3-8b-instruct",
+            response_format: { type: "json_object" },
+            messages: [
+                {
+                    role: "system",
+                    content: `
 You are an AI agent.
 
 Available tools:
@@ -85,100 +95,111 @@ IMPORTANT:
 - Respond ONLY with valid JSON.
 - Do not add explanations.
 - Do not use markdown.
-- If multiple actions are needed, return an array.
+ALWAYS return an array.
 
 Example:
 
 [
   {
-    "tool": "openVSCode",
+    "tool": "createFile",
     "args": {
-      "folder": "."
+      "path": "hello.txt"
     }
   },
   {
-    "tool": "createFile",
+    "tool": "writeFile",
     "args": {
-      "path": "sum.java"
+      "path": "hello.txt",
+      "content": "Hello, World!"
     }
   }
 ]
+  Available tools:
+
+1. openVSCode(path) -> Opens a specific file or folder in VS Code.
+2. createFile(path)
+3. writeFile(path, content)
+
+IMPORTANT:
+- When a file is created and the user asks to open VS Code, call:
+
+{
+  "tool": "openVSCode",
+  "args": {
+    "path": "hello.py"
+  }
+}
+
+- Never use "folder".
+- Never leave path empty.
 `
-            },
-            {
-                role: "user",
-                content: "Open VS Code and create a file called add.java which take two no. and gives output of its sum you can take two no. as 3,4"
+                },
+                {
+                    role: "user",
+                    content: prompt
+                }
+            ]
+        }
+    });
+
+    const content = response.choices[0].message.content;
+
+    try {
+
+        const fixed = jsonrepair(content);
+        const actions = JSON.parse(fixed);
+
+        console.log(actions);
+
+        for (const action of actions) {
+
+            switch (action.tool) {
+
+                case "openVSCode":
+                    openVSCode(action.args.folder);
+                    break;
+
+                case "createFile":
+                    createFile(action.args.path);
+                    break;
+
+                case "writeFile":
+                    writeFile(
+                        action.args.path,
+                        action.args.content
+                    );
+
+                    runFile(action.args.path);
+                    break;
+
+                default:
+                    console.log("Unknown tool");
             }
-        ]
-    }
-});
+        }
 
-const content = response.choices[0].message.content;
-// console.log("Content : ", content);
-
-const fixed = jsonrepair(content);
-
-const actions = JSON.parse(fixed);
-console.log(actions);
-for (const action of actions) {
-
-    switch (action.tool) {
-
-        case "openVSCode":
-            openVSCode(action.args.folder);
-            break;
-
-        case "createFile":
-            createFile(action.args.path);
-            break;
-
-        case "writeFile":
-            writeFile(
-                action.args.path,
-                action.args.content
-            );
-            const error = await runFile(action.args.path);
-            if (error) {
-
-                const fixResponse = await client.chat.send({
-                    chatRequest: {
-                        model: "meta-llama/llama-3-8b-instruct",
-                        messages: [
-                            {
-                                role: "system",
-                                content: "You are an expert programmer. Fix the code."
-                            },
-                            {
-                                role: "user",
-                                content: `
-Code:
-
-${action.args.content}
-
-Compiler Error:
-
-${error}
-
-Return ONLY the corrected code.
-`
-                            }
-                        ]
-                    }
-                });
-
-                const fixedCode =
-                    fixResponse.choices[0].message.content;
-
-                writeFile(action.args.path, fixedCode);
-
-                console.log("Retrying...");
-
-                runFile(action.args.path);
-            }
-
-            break;
-
-        default:
-            console.log("Unknown tool");
+    } catch (err) {
+        console.log("Failed to parse AI response");
+        console.log(err);
+        console.log(content);
     }
 }
+
+//Function to Take input from user in terminal till loop ends 
+function startAgent() {
+
+    rl.question("You: ", async (prompt) => {
+
+        if (prompt.toLowerCase() === "exit") {
+            console.log("Goodbye!");
+            rl.close();
+            return;
+        }
+
+        await askAI(prompt);
+
+        // Ask again
+        startAgent();
+    });
+}
+
+startAgent();
