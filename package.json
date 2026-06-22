@@ -1,0 +1,21 @@
+{
+  "name": "AI AGENT",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node --watch index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.15.0",
+  "dependencies": {
+    "@openrouter/sdk": "^0.13.7",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonrepair": "^3.14.0"
+  }
+}
