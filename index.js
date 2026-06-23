@@ -68,6 +68,14 @@ function writeFile(path, content) {
     console.log(`${path} written`);
 }
 
+function searchGoogle(query) {
+    const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+
+    exec(`start chrome "${url}"`);
+
+    console.log(`Searching Google for: ${query}`);
+}
+
 const client = new OpenRouter({
     apiKey: process.env.OPENROUTER_API_KEY,
 });
@@ -90,6 +98,7 @@ Available tools:
 1. openVSCode(folder)
 2. createFile(path)
 3. writeFile(path, content)
+4. searchGoogle(query)
 
 IMPORTANT:
 - Respond ONLY with valid JSON.
@@ -113,6 +122,13 @@ Example:
       "content": "Hello, World!"
     }
   }
+     {
+    "tool": "searchGoogle",
+    "args": {
+      "query": "best React projects GitHub"
+    }
+  }
+
 ]
   Available tools:
 
@@ -161,6 +177,10 @@ IMPORTANT:
 
                 case "createFile":
                     createFile(action.args.path);
+                    break;
+
+                case "searchGoogle":
+                    searchGoogle(action.args.query);
                     break;
 
                 case "writeFile":
